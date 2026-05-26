@@ -41,7 +41,7 @@ The default base path is `/mnt/user/appdata/plex/Library/Application Support/Ple
 bash plex-compressor/run.sh "/mnt/user/appdata/plex/Library/Application Support/Plex Media Server"
 ```
 
-The Docker image is built, used, and then removed automatically. The only artifact left behind is `.compress_state.json` in the Metadata folder.
+The Docker image is built, used, and then removed automatically. The only artifacts left behind are `.compress_state.json` files inside `Metadata/` and `Media/localhost/`.
 
 ## Unraid User Scripts
 
