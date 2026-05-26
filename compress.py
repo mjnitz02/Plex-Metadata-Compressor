@@ -150,20 +150,11 @@ def walk_images(metadata_dir: Path):
             yield dp / filename
 
 
-def main() -> None:
-    if len(sys.argv) < 2:
-        print('Usage: compress.py <metadata_dir>', flush=True)
-        sys.exit(1)
+def compress_dir(target_dir: Path) -> tuple[int, int, int, int]:
+    print(f'\n[plex-compressor] Scanning: {target_dir}', flush=True)
+    state = load_state(target_dir)
 
-    metadata_dir = Path(sys.argv[1]).resolve()
-    if not metadata_dir.is_dir():
-        print(f'Not a directory: {metadata_dir}', flush=True)
-        sys.exit(1)
-
-    print(f'[plex-compressor] Scanning: {metadata_dir}', flush=True)
-    state = load_state(metadata_dir)
-
-    files = list(walk_images(metadata_dir))
+    files = list(walk_images(target_dir))
     total = len(files)
     print(f'[plex-compressor] Found {total} candidate files', flush=True)
 
@@ -177,7 +168,7 @@ def main() -> None:
 
         scanned += 1
 
-        if already_processed(path, metadata_dir, state):
+        if already_processed(path, target_dir, state):
             skipped += 1
             continue
 
@@ -194,17 +185,47 @@ def main() -> None:
                 flush=True,
             )
 
-        record_processed(path, metadata_dir, state)
+        record_processed(path, target_dir, state)
 
         if scanned % STATE_SAVE_INTERVAL == 0:
-            save_state(metadata_dir, state)
+            save_state(target_dir, state)
 
-    save_state(metadata_dir, state)
+    save_state(target_dir, state)
     print(
-        f'\n[plex-compressor] Done — scanned: {scanned}, skipped: {skipped}, '
+        f'[plex-compressor] {target_dir.name} — scanned: {scanned}, skipped: {skipped}, '
         f'compressed: {compressed}, saved: {fmt_bytes(total_saved)}',
         flush=True,
     )
+    return scanned, skipped, compressed, total_saved
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print('Usage: compress.py <dir> [<dir> ...]', flush=True)
+        sys.exit(1)
+
+    dirs = []
+    for arg in sys.argv[1:]:
+        p = Path(arg).resolve()
+        if not p.is_dir():
+            print(f'Not a directory, skipping: {p}', flush=True)
+        else:
+            dirs.append(p)
+
+    if not dirs:
+        sys.exit(1)
+
+    grand = [0, 0, 0, 0]
+    for d in dirs:
+        result = compress_dir(d)
+        grand = [g + r for g, r in zip(grand, result)]
+
+    if len(dirs) > 1:
+        print(
+            f'\n[plex-compressor] Total — scanned: {grand[0]}, skipped: {grand[1]}, '
+            f'compressed: {grand[2]}, saved: {fmt_bytes(grand[3])}',
+            flush=True,
+        )
 
 
 if __name__ == '__main__':

@@ -2,16 +2,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-METADATA_PATH="${1:-/mnt/user/appdata/plex/Library/Application Support/Plex Media Server/Metadata}"
+PLEX_DATA="${1:-/mnt/user/appdata/plex/Library/Application Support/Plex Media Server}"
 IMAGE_NAME="plex-compressor-$(date +%s)"
 
 echo "[plex-compressor] Building Docker image..."
 docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
 
-echo "[plex-compressor] Compressing metadata at: $METADATA_PATH"
+echo "[plex-compressor] Compressing Plex data at: $PLEX_DATA"
 docker run --rm \
-  -v "$METADATA_PATH:/metadata" \
-  "$IMAGE_NAME" /metadata
+  -v "$PLEX_DATA:/plexdata" \
+  "$IMAGE_NAME" \
+  /plexdata/Metadata \
+  /plexdata/Media/localhost
 
 echo "[plex-compressor] Removing Docker image..."
 docker rmi "$IMAGE_NAME" > /dev/null 2>&1 || true
