@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import stat as stat_module
 import subprocess
 import sys
 import tempfile
@@ -64,6 +65,14 @@ def detect_type(path: Path) -> str | None:
     return None
 
 
+def restore_stat(path: Path, st: os.stat_result) -> None:
+    try:
+        os.chown(path, st.st_uid, st.st_gid)
+        os.chmod(path, stat_module.S_IMODE(st.st_mode))
+    except OSError as e:
+        print(f'  Warning: could not restore permissions on {path.name}: {e}', flush=True)
+
+
 def fmt_bytes(n: int) -> str:
     if n < 1024:
         return f'{n} B'
@@ -73,7 +82,8 @@ def fmt_bytes(n: int) -> str:
 
 
 def compress_jpeg(path: Path) -> int:
-    original_size = path.stat().st_size
+    original_stat = path.stat()
+    original_size = original_stat.st_size
     try:
         with Image.open(path) as img:
             mode = img.mode
@@ -88,6 +98,7 @@ def compress_jpeg(path: Path) -> int:
                 new_size = tmp_path.stat().st_size
                 if new_size < original_size:
                     tmp_path.replace(path)
+                    restore_stat(path, original_stat)
                     return original_size - new_size
                 else:
                     return 0
@@ -99,7 +110,8 @@ def compress_jpeg(path: Path) -> int:
 
 
 def compress_png(path: Path) -> int:
-    original_size = path.stat().st_size
+    original_stat = path.stat()
+    original_size = original_stat.st_size
     with tempfile.NamedTemporaryFile(dir=path.parent, suffix='.tmp', delete=False) as tmp:
         tmp_path = Path(tmp.name)
     try:
@@ -117,6 +129,7 @@ def compress_png(path: Path) -> int:
             new_size = tmp_path.stat().st_size
             if new_size > 0 and new_size < original_size:
                 tmp_path.replace(path)
+                restore_stat(path, original_stat)
                 return original_size - new_size
         return 0
     except FileNotFoundError:

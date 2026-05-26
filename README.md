@@ -1,0 +1,55 @@
+# plex-compressor
+
+Compresses Plex metadata images (posters, art, clear logos) in-place to reclaim disk space. Detects JPEG and PNG files by magic bytes since Plex stores metadata without extensions, skips MP3 theme files entirely, and preserves the original file's ownership and permissions after each write.
+
+Runs as a self-cleaning Docker container so nothing is installed on the host or inside the Plex container.
+
+## How it works
+
+- Walks the `Metadata` directory recursively
+- Identifies file type by magic bytes (`\xff\xd8\xff` = JPEG, `\x89PNG` = PNG)
+- Skips `themes/` subdirectories (MP3 audio)
+- Compresses JPEGs with Pillow at quality 75 (optimize + progressive)
+- Compresses PNGs with pngquant at quality 60–85 (`--skip-if-larger` so nothing gets worse)
+- Restores the original `uid`, `gid`, and permissions on every file it writes
+- Writes `.compress_state.json` into the `Metadata` folder to track processed files — re-runs skip already-compressed files and only process new ones
+
+## Usage
+
+Clone the repo alongside your Plex appdata:
+
+```bash
+cd /mnt/user/appdata
+git clone https://github.com/mjnitz02/plex-compressor.git
+```
+
+Run the script:
+
+```bash
+bash plex-compressor/run.sh
+```
+
+The default metadata path is `/mnt/user/appdata/plex/Library/Application Support/Plex Media Server/Metadata`. Pass a different path as the first argument if your layout differs:
+
+```bash
+bash plex-compressor/run.sh "/mnt/user/appdata/plex/Library/Application Support/Plex Media Server/Metadata"
+```
+
+The Docker image is built, used, and then removed automatically. The only artifact left behind is `.compress_state.json` in the Metadata folder.
+
+## Unraid User Scripts
+
+In the **User Scripts** plugin, create a new script with this as the body:
+
+```bash
+#!/bin/bash
+bash /mnt/user/appdata/plex-compressor/run.sh
+```
+
+Set it to run on whatever schedule suits you (e.g. monthly, or after a Plex library refresh).
+
+## Notes
+
+- Plex does not embed metadata inside image files, so lossy compression is safe here
+- The script runs as root (standard for Unraid user scripts and Docker) but explicitly restores the original owner and permissions on every file it touches
+- Re-running after Plex fetches new artwork is safe — new files will be compressed, previously compressed files will be skipped
